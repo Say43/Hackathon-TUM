@@ -1,0 +1,4 @@
+image_size:
+  width: 224
+  height: 224
+threshold: 0.5

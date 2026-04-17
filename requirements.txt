@@ -1,0 +1,7 @@
+numpy
+Pillow
+PyYAML
+einops
+huggingface_hub
+timm
+torch
