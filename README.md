@@ -4,6 +4,14 @@ Minimal Prithvi demo for running a local test image through the original checkpo
 
 `prithvi.py` is the main program and current CLI entry point.
 
+## Google Colab
+
+Open the notebook directly in Colab:
+
+`https://colab.research.google.com/github/Say43/Hackathon-TUM/blob/main/colab_demo.ipynb`
+
+The notebook installs dependencies, clones the repo, lets you upload an image, and runs the demo.
+
 ## PowerShell quick start
 
 ```bash

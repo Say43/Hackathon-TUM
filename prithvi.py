@@ -159,23 +159,26 @@ def run_inference(model, image_tensor: torch.Tensor) -> dict:
     }
 
 
-def main() -> None:
-    args = build_parser().parse_args()
+def run_pipeline(
+    image_path: str | Path = DEFAULT_IMAGE_PATH,
+    config_path: str | Path = DEFAULT_CONFIG_PATH,
+    repo_id: str = DEFAULT_MODEL_REPO,
+    device_arg: str = "auto",
+) -> dict:
+    local_config = load_local_config(Path(config_path))
+    device = resolve_device(device_arg)
 
-    local_config = load_local_config(Path(args.config))
-    device = resolve_device(args.device)
-
-    model, model_config, weights_path = load_model(args.repo, device)
+    model, model_config, weights_path = load_model(repo_id, device)
     image_size = resolve_image_size(local_config, model_config)
     num_frames = int(model_config.get("num_frames", 3))
 
-    image_tensor = build_input_tensor(Path(args.image), image_size, num_frames).to(device)
+    image_tensor = build_input_tensor(Path(image_path), image_size, num_frames).to(device)
     inference_result = run_inference(model, image_tensor)
 
-    result = {
-        "repo": args.repo,
+    return {
+        "repo": repo_id,
         "weights": str(weights_path),
-        "image": args.image,
+        "image": str(image_path),
         "device": str(device),
         "input_shape": list(image_tensor.shape),
         "note": (
@@ -184,6 +187,16 @@ def main() -> None:
         ),
         **inference_result,
     }
+
+
+def main() -> None:
+    args = build_parser().parse_args()
+    result = run_pipeline(
+        image_path=args.image,
+        config_path=args.config,
+        repo_id=args.repo,
+        device_arg=args.device,
+    )
     print(json.dumps(result, indent=2))
 
 
