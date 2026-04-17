@@ -8,7 +8,21 @@ Minimal Prithvi demo for running a local test image through the original checkpo
 
 Open `jupyter_demo.ipynb` in your Jupyter environment.
 
-The notebook clones the repo, installs dependencies, and runs the demo with a file path that you set on your server.
+The notebook clones the repo, installs dependencies, downloads the public sample data from S3 into `example data`, finds a JPG or PNG automatically, and runs the demo.
+
+## Sample Data Download
+
+To download the public sample data from S3 directly into `example data`, run:
+
+```bash
+python download_sample_data.py
+```
+
+You can override bucket, folder, or target directory if needed:
+
+```bash
+python download_sample_data.py --bucket_name osapiens-terra-challenge --folder_name makeathon-challenge --local_dir "example data"
+```
 
 ## PowerShell quick start
 
@@ -16,6 +30,7 @@ The notebook clones the repo, installs dependencies, and runs the demo with a fi
 cd "C:\Festplatte (D)\Dateien\AI\Codex Projects\Hackathon"
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\\.venv\\Scripts\\python.exe download_sample_data.py
 .\.venv\Scripts\python.exe prithvi.py
 ```
 
