@@ -149,10 +149,34 @@ def derive_temporal_consistency_mask(
     return temporal_mask.astype(bool)
 
 
+def derive_proxy_confidence(
+    mask: np.ndarray,
+    cloud_mask: np.ndarray | None = None,
+    temporal_mask: np.ndarray | None = None,
+    probability_map: np.ndarray | None = None,
+) -> np.ndarray:
+    if probability_map is not None:
+        return np.clip(probability_map.astype(np.float32), 0.0, 1.0)
+
+    binary = (mask > 0).astype(np.float32)
+    local_density = ndimage.uniform_filter(binary, size=9, mode="nearest")
+    confidence = 0.55 * binary + 0.45 * np.clip(local_density * 1.8, 0.0, 1.0)
+
+    if temporal_mask is not None:
+        confidence += 0.2 * temporal_mask.astype(np.float32)
+    if cloud_mask is not None:
+        confidence -= 0.35 * cloud_mask.astype(np.float32)
+
+    confidence *= binary
+    return np.clip(confidence, 0.0, 1.0)
+
+
 def filter_mask(
     mask: np.ndarray,
     cloud_mask: np.ndarray | None = None,
     temporal_mask: np.ndarray | None = None,
+    confidence_map: np.ndarray | None = None,
+    confidence_threshold: float = 0.55,
     opening_size: int = 2,
     closing_size: int = 2,
     min_component_size: int = 64,
@@ -162,6 +186,8 @@ def filter_mask(
         binary = binary & ~cloud_mask
     if temporal_mask is not None:
         binary = binary & temporal_mask
+    if confidence_map is not None:
+        binary = binary & (confidence_map >= confidence_threshold)
 
     structure = np.ones((opening_size, opening_size), dtype=bool)
     opened = ndimage.binary_opening(binary, structure=structure)
@@ -191,17 +217,21 @@ def filter_raster(
     s2_path = None
     temporal_mask = None
     s2_paths: list[Path] = []
+    confidence_map = None
     if data_dir is not None:
         s2_path = find_latest_s2_scene(data_dir, tile_id, split=split)
         s2_paths = list_s2_scenes(data_dir, tile_id, split=split)
         if s2_path is not None:
             cloud_mask = derive_cloud_mask_from_s2(s2_path, target_shape=arr.shape)
         temporal_mask = derive_temporal_consistency_mask(s2_paths, target_shape=arr.shape)
+    confidence_map = derive_proxy_confidence(arr, cloud_mask=cloud_mask, temporal_mask=temporal_mask)
 
     filtered = filter_mask(
         arr,
         cloud_mask=cloud_mask,
         temporal_mask=temporal_mask,
+        confidence_map=confidence_map,
+        confidence_threshold=0.55,
         opening_size=opening_size,
         closing_size=closing_size,
         min_component_size=min_component_size,
@@ -216,6 +246,7 @@ def filter_raster(
     positive_after_temporal_mask = (
         positive_after_cloud_mask & temporal_mask if temporal_mask is not None else positive_after_cloud_mask
     )
+    positive_after_confidence_mask = positive_after_temporal_mask & (confidence_map >= 0.55)
 
     diagnostics = {
         "tile_id": tile_id,
@@ -224,11 +255,14 @@ def filter_raster(
         "positive_before": int(positive_before.sum()),
         "positive_after_cloud": int(positive_after_cloud_mask.sum()),
         "positive_after_temporal": int(positive_after_temporal_mask.sum()),
+        "positive_after_confidence": int(positive_after_confidence_mask.sum()),
         "positive_after_filter": int((filtered > 0).sum()),
         "cloud_pixels": int(cloud_mask.sum()) if cloud_mask is not None else 0,
         "temporal_support_pixels": int(temporal_mask.sum()) if temporal_mask is not None else 0,
+        "mean_proxy_confidence": float(confidence_map[positive_before].mean()) if np.any(positive_before) else 0.0,
         "cloud_suppressed_positive_pixels": int((positive_before & cloud_mask).sum()) if cloud_mask is not None else 0,
         "temporally_suppressed_positive_pixels": int((positive_after_cloud_mask & ~temporal_mask).sum()) if temporal_mask is not None else 0,
+        "confidence_suppressed_positive_pixels": int((positive_after_temporal_mask & ~(confidence_map >= 0.55)).sum()),
     }
     return output_path, diagnostics
 
