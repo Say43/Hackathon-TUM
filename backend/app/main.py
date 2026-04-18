@@ -75,10 +75,13 @@ def _log_resolved_paths() -> None:
     banner = [
         "=" * 72,
         " Dataset path resolution",
+        f"   cwd               : {info['cwd']}",
         f"   repoRoot          : {info['repoRoot']}",
         f"   modelTrainingDir  : {info['modelTrainingDir']}",
         f"   env source        : {info['envVar']['source']}",
         f"   env raw value     : {info['envVar']['rawValue']}",
+        f"   env is relative   : {info['envVar']['isRelative']}",
+        f"   env anchored to   : {info['envVar']['anchoredTo']}",
         f"   env resolved abs  : {info['envVar']['resolvedAbsolute']}",
         f"   env resolved ok   : {info['envVar']['resolvedExists']}",
         "   default candidates:",

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MODEL_TRAINING = REPO_ROOT / "model-training"
@@ -37,11 +40,42 @@ DEFAULT_DATA_CANDIDATES = (
 )
 
 
+def _resolve_env_data_dir(raw: str) -> Path:
+    """Resolve a user-supplied path, anchoring relative paths to REPO_ROOT.
+
+    Anchoring to REPO_ROOT (not `os.getcwd()`) is important because uvicorn is
+    typically launched from inside `backend/`, which turns a perfectly
+    sensible-looking value like `model-training/data/...` into
+    `backend/model-training/data/...` — a path that does not exist.
+    """
+    expanded = Path(raw).expanduser()
+    if not expanded.is_absolute():
+        expanded = REPO_ROOT / expanded
+    return expanded.resolve()
+
+
 def get_data_dir() -> Path | None:
-    """Dataset root (sentinel-1/, sentinel-2/, …). Optional for live inference."""
+    """Dataset root (sentinel-1/, sentinel-2/, …). Optional for live inference.
+
+    Precedence:
+      1. `MAKEATHON_DATA_DIR` / `DATA_DIR` if set AND the path exists.
+      2. Built-in default candidates (first existing wins).
+
+    If the env var is set but points to a non-existent path we log a warning and
+    fall through to the defaults, rather than returning a dead path that makes
+    downstream checks fail mysteriously.
+    """
     raw = os.environ.get("MAKEATHON_DATA_DIR") or os.environ.get("DATA_DIR")
     if raw:
-        return Path(raw).expanduser().resolve()
+        env_path = _resolve_env_data_dir(raw)
+        if env_path.exists():
+            return env_path
+        logger.warning(
+            "Env-configured data dir %r resolved to %s, but that path does not exist. "
+            "Falling back to built-in defaults.",
+            raw,
+            env_path,
+        )
 
     for candidate in DEFAULT_DATA_CANDIDATES:
         if candidate.exists():
@@ -62,8 +96,10 @@ def describe_data_dir_resolution() -> dict:
         else ("DATA_DIR" if os.environ.get("DATA_DIR") else None)
     )
     resolved_from_env: Path | None = None
+    env_is_relative: bool | None = None
     if raw_env:
-        resolved_from_env = Path(raw_env).expanduser().resolve()
+        env_is_relative = not Path(raw_env).expanduser().is_absolute()
+        resolved_from_env = _resolve_env_data_dir(raw_env)
 
     def _probe(path: Path) -> dict:
         p = path.expanduser().resolve()
@@ -86,11 +122,14 @@ def describe_data_dir_resolution() -> dict:
     return {
         "repoRoot": str(REPO_ROOT),
         "modelTrainingDir": str(MODEL_TRAINING),
+        "cwd": str(Path.cwd()),
         "envVar": {
             "source": env_source,
             "rawValue": raw_env,
+            "isRelative": env_is_relative,
             "resolvedAbsolute": str(resolved_from_env) if resolved_from_env else None,
             "resolvedExists": resolved_from_env.exists() if resolved_from_env else None,
+            "anchoredTo": "REPO_ROOT" if env_is_relative else ("ABSOLUTE" if raw_env else None),
         },
         "defaultCandidates": candidates,
         "resolved": str(resolved) if resolved else None,
