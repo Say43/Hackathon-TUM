@@ -1,4 +1,4 @@
-import type { LandPlot } from "../types";
+import type { LandPlot, TimeSeriesPoint } from "../types";
 import { ValidationPanel } from "../components/ValidationPanel";
 import { PlotSelector } from "../components/PlotSelector";
 
@@ -7,11 +7,13 @@ export function ValidationPage({
   selectedPlot,
   search,
   onSelectPlot,
+  timeSeries,
 }: {
   plots: LandPlot[];
   selectedPlot: LandPlot;
   search: string;
   onSelectPlot: (p: LandPlot) => void;
+  timeSeries: TimeSeriesPoint[];
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 lg:flex-row">
@@ -30,7 +32,7 @@ export function ValidationPage({
             Human-in-the-loop review for EUDR-aligned deforestation decisions
           </p>
         </div>
-        <ValidationPanel plot={selectedPlot} />
+        <ValidationPanel plot={selectedPlot} timeSeries={timeSeries} />
       </div>
     </div>
   );

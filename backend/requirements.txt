@@ -1,0 +1,4 @@
+# Install model-training stack first for rasterio / sklearn / solution package:
+#   pip install -r ../model-training/requirements.txt
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0

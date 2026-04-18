@@ -13,6 +13,7 @@ export function LandPlotsPage({
   layers,
   onToggleLayer,
   onSelectPlot,
+  regionOptions,
 }: {
   plots: LandPlot[];
   selectedPlot: LandPlot;
@@ -22,13 +23,14 @@ export function LandPlotsPage({
   layers: Record<LayerId, boolean>;
   onToggleLayer: (id: LayerId) => void;
   onSelectPlot: (p: LandPlot) => void;
+  regionOptions?: string[];
 }) {
   const filtered = plots.filter((p) => regionMatches(p.region, region));
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 lg:flex-row">
       <div className="flex w-full shrink-0 flex-col gap-3 lg:w-64">
-        <RegionFilter value={region} onChange={onRegion} />
+        <RegionFilter value={region} onChange={onRegion} regions={regionOptions} />
         <PlotSelector
           plots={filtered}
           selectedId={selectedPlot.id}

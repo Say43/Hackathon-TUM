@@ -68,6 +68,10 @@ export interface LandPlot {
   overlays: MapOverlayRegion[];
   changeWindowStart: string;
   changeWindowEnd: string;
+  /** Downsampled model emphasis grid from API (optional). */
+  heatmap?: number[][];
+  /** `model` live inference or `cached_raster` from pred GeoTIFF. */
+  apiSource?: string;
 }
 
 export interface TimeSeriesPoint {

@@ -11,6 +11,7 @@ import { ValidationPage } from "./pages/ValidationPage";
 import { LAND_PLOTS } from "./data/mock";
 import type { LayerId, NavKey } from "./types";
 import { regionMatches } from "./components/RegionFilter";
+import { useBackendData, usePlotTimeseries } from "./hooks/useBackendData";
 
 const DEFAULT_LAYERS: Record<LayerId, boolean> = {
   sentinel1: true,
@@ -21,6 +22,7 @@ const DEFAULT_LAYERS: Record<LayerId, boolean> = {
 };
 
 export default function App() {
+  const { plots, source, health, loading, regions } = useBackendData();
   const [nav, setNav] = useState<NavKey>("overview");
   const [selectedPlotId, setSelectedPlotId] = useState(LAND_PLOTS[0].id);
   const [search, setSearch] = useState("");
@@ -29,26 +31,28 @@ export default function App() {
   const [monitoringActive, setMonitoringActive] = useState(true);
 
   const selectedPlot = useMemo(
-    () => LAND_PLOTS.find((p) => p.id === selectedPlotId) ?? LAND_PLOTS[0],
-    [selectedPlotId],
+    () => plots.find((p) => p.id === selectedPlotId) ?? plots[0] ?? LAND_PLOTS[0],
+    [plots, selectedPlotId],
   );
+
+  const timeSeriesPoints = usePlotTimeseries(selectedPlot);
 
   const plotsForRegion = useMemo(
-    () => LAND_PLOTS.filter((p) => regionMatches(p.region, region)),
-    [region],
+    () => plots.filter((p) => regionMatches(p.region, region)),
+    [plots, region],
   );
 
-  const selectPlot = (p: (typeof LAND_PLOTS)[0]) => {
+  const selectPlot = (p: (typeof plots)[0]) => {
     setSelectedPlotId(p.id);
   };
 
   const selectPlotById = (id: string) => {
-    const p = LAND_PLOTS.find((x) => x.id === id);
+    const p = plots.find((x) => x.id === id);
     if (p) setSelectedPlotId(p.id);
   };
 
   const onTileDropdown = (tileId: string) => {
-    const p = LAND_PLOTS.find((x) => x.tileId === tileId);
+    const p = plots.find((x) => x.tileId === tileId);
     if (p) setSelectedPlotId(p.id);
   };
 
@@ -57,15 +61,21 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (plots.length && !plots.some((p) => p.id === selectedPlotId)) {
+      setSelectedPlotId(plots[0].id);
+    }
+  }, [plots, selectedPlotId]);
+
+  useEffect(() => {
     if (nav !== "plots") return;
-    const filtered = LAND_PLOTS.filter((p) => regionMatches(p.region, region));
+    const filtered = plots.filter((p) => regionMatches(p.region, region));
     if (
       filtered.length > 0 &&
       !filtered.some((p) => p.id === selectedPlotId)
     ) {
       setSelectedPlotId(filtered[0].id);
     }
-  }, [region, nav, selectedPlotId]);
+  }, [region, nav, selectedPlotId, plots]);
 
   const showInsights = nav !== "validation";
 
@@ -80,17 +90,22 @@ export default function App() {
           onTileChange={onTileDropdown}
           monitoringActive={monitoringActive}
           onToggleMonitoring={() => setMonitoringActive((m) => !m)}
+          tileOptions={plots}
+          dataSource={source}
+          apiLoading={loading}
+          apiHealthy={health?.modelLoaded === true}
         />
         <div className="flex min-h-0 flex-1">
           <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">
             {nav === "overview" && (
               <OverviewPage
-                plots={LAND_PLOTS}
+                plots={plots}
                 selectedPlot={selectedPlot}
                 layers={layers}
                 onToggleLayer={toggleLayer}
                 onSelectPlot={selectPlot}
                 onSelectPlotById={selectPlotById}
+                previewTimeSeries={timeSeriesPoints}
               />
             )}
             {nav === "plots" && (
@@ -103,19 +118,21 @@ export default function App() {
                 layers={layers}
                 onToggleLayer={toggleLayer}
                 onSelectPlot={selectPlot}
+                regionOptions={regions}
               />
             )}
             {nav === "timeseries" && (
               <TimeSeriesPage
-                plots={LAND_PLOTS}
+                plots={plots}
                 selectedPlot={selectedPlot}
                 search={search}
                 onSelectPlot={selectPlot}
+                timeSeries={timeSeriesPoints}
               />
             )}
             {nav === "predictions" && (
               <PredictionsPage
-                plots={LAND_PLOTS}
+                plots={plots}
                 selectedPlot={selectedPlot}
                 search={search}
                 onSelectPlot={selectPlot}
@@ -123,7 +140,7 @@ export default function App() {
             )}
             {nav === "risk" && (
               <RiskAnalysisPage
-                plots={LAND_PLOTS}
+                plots={plots}
                 selectedPlot={selectedPlot}
                 search={search}
                 onSelectPlot={selectPlot}
@@ -131,10 +148,11 @@ export default function App() {
             )}
             {nav === "validation" && (
               <ValidationPage
-                plots={LAND_PLOTS}
+                plots={plots}
                 selectedPlot={selectedPlot}
                 search={search}
                 onSelectPlot={selectPlot}
+                timeSeries={timeSeriesPoints}
               />
             )}
           </main>

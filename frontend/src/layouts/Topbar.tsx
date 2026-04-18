@@ -1,5 +1,5 @@
-import { Bell, Search, User } from "lucide-react";
-import { LAND_PLOTS } from "../data/mock";
+import { Bell, Database, Search, User } from "lucide-react";
+import type { LandPlot } from "../types";
 import { StatusBadge } from "../components/StatusBadge";
 import { cn } from "../lib/cn";
 
@@ -10,6 +10,10 @@ export function Topbar({
   onTileChange,
   monitoringActive,
   onToggleMonitoring,
+  tileOptions,
+  dataSource,
+  apiLoading,
+  apiHealthy,
 }: {
   search: string;
   onSearch: (v: string) => void;
@@ -17,6 +21,10 @@ export function Topbar({
   onTileChange: (tileId: string) => void;
   monitoringActive: boolean;
   onToggleMonitoring?: () => void;
+  tileOptions: LandPlot[];
+  dataSource: "api" | "mock";
+  apiLoading?: boolean;
+  apiHealthy?: boolean;
 }) {
   return (
     <header className="sticky top-0 z-20 border-b border-slate-800/80 bg-obsidian-950/90 px-4 py-3 backdrop-blur-md">
@@ -49,12 +57,28 @@ export function Topbar({
               "hidden sm:block",
             )}
           >
-            {LAND_PLOTS.map((p) => (
+            {tileOptions.map((p) => (
               <option key={p.id} value={p.tileId}>
                 {p.tileId}
               </option>
             ))}
           </select>
+
+          <div
+            className="hidden items-center gap-1.5 rounded-lg border border-slate-800 bg-obsidian-900 px-2 py-1 text-[10px] font-medium text-slate-400 lg:flex"
+            title="Backend / model data source"
+          >
+            <Database className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+            {apiLoading ? (
+              <span>API…</span>
+            ) : dataSource === "api" ? (
+              <span className={apiHealthy ? "text-emerald-400" : "text-amber-400"}>
+                Model API
+              </span>
+            ) : (
+              <span className="text-slate-500">Mock data</span>
+            )}
+          </div>
 
           <button
             type="button"

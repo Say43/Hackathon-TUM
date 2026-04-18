@@ -14,6 +14,22 @@ npm run dev
 
 Open the URL shown (default `http://localhost:5173`).
 
+### Connect to the trained model (backend)
+
+1. In another terminal, start the API (see **`../backend/README.md`**):
+
+   ```bash
+   cd ../backend
+   pip install -r ../model-training/requirements.txt -r requirements.txt
+   uvicorn app.main:app --reload --port 8000
+   ```
+
+2. Keep the Vite dev server running. It **proxies** `/api` → `http://127.0.0.1:8000`, so the UI loads **`GET /api/plots`** and switches from mock tiles to **real test tiles** (e.g. `48PWA_0_6`) when the API is up.
+
+3. Top bar shows **Model API** (green) vs **Mock data** if the backend is unreachable.
+
+Optional: set `VITE_API_BASE_URL` if the API is not on localhost during dev.
+
 ```bash
 npm run build   # typecheck + production bundle
 npm run preview
