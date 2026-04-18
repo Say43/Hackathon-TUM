@@ -4,14 +4,8 @@ import path from "node:path";
 
 export default defineConfig({
   plugins: [react()],
-  server: {
-    proxy: {
-      "/api": {
-        target: "http://127.0.0.1:8000",
-        changeOrigin: true,
-      },
-    },
-  },
+  // No dev-server proxy: the frontend is strict API-only and must hit
+  // VITE_API_BASE_URL directly (see frontend/src/lib/api.ts).
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

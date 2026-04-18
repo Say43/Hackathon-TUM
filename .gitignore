@@ -7,3 +7,14 @@ data/
 !frontend/src/data/mock.ts
 models/
 outputs/
+
+# Local env files (keep `.env.example` tracked for reference)
+.env
+.env.local
+.env.*.local
+!.env.example
+!.env.production.example
+
+# Vercel CLI
+.vercel
+

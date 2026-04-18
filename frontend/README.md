@@ -35,6 +35,52 @@ npm run build   # typecheck + production bundle
 npm run preview
 ```
 
+## Deploy to Vercel
+
+This folder is a self-contained Vite app and ships with a `vercel.json` so it
+can be deployed as-is.
+
+### One-time setup (Vercel dashboard)
+
+1. **Import the repo** on [vercel.com/new](https://vercel.com/new).
+2. Set **Root Directory** = `frontend` (important — the repo contains a
+   separate Python backend).
+3. Framework preset should auto-detect as **Vite**. Leave the defaults
+   (install / build / output) — they match `vercel.json`.
+4. Under **Settings → Environment Variables**, add (for *Production* and
+   *Preview*):
+
+   | Name | Value (example) |
+   |------|-----------------|
+   | `VITE_API_BASE_URL` | `https://your-backend-host.example.com` |
+
+   See `.env.production.example` for the authoritative list.
+
+### Deploy from the CLI (optional)
+
+```bash
+cd frontend
+npm i -g vercel
+vercel link          # first time only, attaches this dir to a Vercel project
+vercel --prod        # production deploy
+```
+
+### Backend requirements
+
+The frontend calls `${VITE_API_BASE_URL}/api/*` directly from the browser, so
+the **backend must allow the Vercel origin**. On the backend host set:
+
+```bash
+# e.g. your production domain, plus wildcard preview URLs are handled via regex
+export CORS_ORIGINS="https://your-app.vercel.app"
+# or allow every *.vercel.app preview:
+export CORS_ORIGIN_REGEX="https://.*\.vercel\.app"
+```
+
+The dev-only `/api` proxy in `vite.config.ts` is **not** used in production
+builds — Vercel serves static assets and the browser talks to
+`VITE_API_BASE_URL` over HTTPS.
+
 ## Layout
 
 - **Left sidebar** — Overview, Land Plots, Time Series, Predictions, Risk Analysis, Validation  

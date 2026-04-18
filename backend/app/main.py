@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
@@ -26,15 +27,33 @@ app = FastAPI(
     description="Serves inference from the Makeathon baseline model (joblib) and cached GeoTIFFs.",
 )
 
+_DEFAULT_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
+]
+
+_env_origins = [
+    o.strip()
+    for o in os.environ.get("CORS_ORIGINS", "").split(",")
+    if o.strip()
+]
+_allow_all = "*" in _env_origins
+_allowed_origins = ["*"] if _allow_all else [*_DEFAULT_ORIGINS, *_env_origins]
+
+# Support Vercel preview URLs (e.g. `project-git-branch-team.vercel.app`)
+# without having to enumerate them one by one.
+_origin_regex = os.environ.get(
+    "CORS_ORIGIN_REGEX",
+    r"https://.*\.vercel\.app",
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:4173",
-        "http://127.0.0.1:4173",
-    ],
-    allow_credentials=True,
+    allow_origins=_allowed_origins,
+    allow_origin_regex=None if _allow_all else _origin_regex,
+    allow_credentials=not _allow_all,
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -32,11 +32,28 @@ Open **http://127.0.0.1:8000/docs** for Swagger UI.
 
 ## Environment variables
 
+Copy `backend/.env.example` to `backend/.env` and edit — it is auto-loaded on startup via `python-dotenv`.
+
 | Variable | Purpose |
 |----------|---------|
 | `MODEL_PATH` | Override path to `model.joblib` (default: `model-training/runs/baseline/model.joblib`) |
 | `PRED_DIR` | Directory with `pred_{tileId}.tif` for stats when rasters exist but raw stacks do not (default: `model-training/runs/baseline/predictions`) |
 | `MAKEATHON_DATA_DIR` or `DATA_DIR` | Root of the challenge dataset (`sentinel-1/`, `sentinel-2/`, `aef-embeddings/`, …) for **live** `predict_proba` and **timeseries** |
+
+If `MAKEATHON_DATA_DIR` is unset, the backend probes these paths in order and uses the first that exists:
+
+1. `model-training/data/abdul-testrun/makeathon-challenge`
+2. `model-training/data/makeathon-challenge`
+3. `data/makeathon-challenge` (repo root)
+
+Example layout the backend expects:
+
+```text
+$MAKEATHON_DATA_DIR/
+  sentinel-1/test/18NVJ_1_6__s1_rtc/18NVJ_1_6__s1_rtc_2020_1_descending.tif
+  sentinel-2/test/18NVJ_1_6__s2_l2a/...
+  ...
+```
 
 ## Frontend
 

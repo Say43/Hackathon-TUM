@@ -1,6 +1,18 @@
 import type { LandPlot, TimeSeriesPoint } from "../types";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://129.212.191.202:8000";
+/**
+ * Single source of truth for the backend URL. Trailing slashes are trimmed so
+ * concatenation with `/api/...` never produces `//api/...`.
+ *
+ * The frontend is API-only: if this is empty or unreachable, the UI shows an
+ * explicit error instead of silently retrying against the Vite proxy or
+ * localhost. Configure it via `frontend/.env`:
+ *
+ *     VITE_API_BASE_URL=<jupyter-backend-base-url>
+ */
+const RAW_API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").trim();
+export const API_BASE = RAW_API_BASE.replace(/\/+$/, "");
+export const IS_API_CONFIGURED = API_BASE.length > 0;
 
 export type PlotsApiResponse = {
   split: string;
@@ -17,36 +29,69 @@ export type HealthResponse = {
   error?: string | null;
 };
 
-function candidateApiBases(): string[] {
-  const bases = [
-    API_BASE,
-    "",
-  ];
-  return [...new Set(bases.map((b) => b.trim()))];
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly cause?: unknown,
+    public readonly status?: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
 }
 
-async function apiFetch(path: string): Promise<Response | null> {
-  for (const base of candidateApiBases()) {
-    try {
-      const r = await fetch(`${base}${path}`);
-      if (r.ok) return r;
-    } catch {
-      continue;
-    }
+async function apiFetch(path: string): Promise<Response> {
+  if (!IS_API_CONFIGURED) {
+    throw new ApiError(
+      "VITE_API_BASE_URL is not configured. Set it in frontend/.env and restart the dev server.",
+    );
   }
-  return null;
+  const url = `${API_BASE}${path}`;
+  let response: Response;
+  try {
+    response = await fetch(url);
+  } catch (err) {
+    throw new ApiError(
+      `Could not reach the backend at ${API_BASE}. Check VITE_API_BASE_URL and that the Jupyter backend is online.`,
+      err,
+    );
+  }
+  if (!response.ok) {
+    throw new ApiError(
+      `Backend responded with ${response.status} ${response.statusText} for ${path}`,
+      undefined,
+      response.status,
+    );
+  }
+  return response;
 }
 
 export async function fetchHealth(): Promise<HealthResponse | null> {
-  const r = await apiFetch("/api/health");
-  if (!r) return null;
-  return (await r.json()) as HealthResponse;
+  try {
+    const r = await apiFetch("/api/health");
+    return (await r.json()) as HealthResponse;
+  } catch (err) {
+    if (err instanceof ApiError) {
+      return {
+        status: "unreachable",
+        modelLoaded: false,
+        datasetPresent: false,
+        cachedPredictionsPresent: false,
+        testTiles: 0,
+        error: err.message,
+      };
+    }
+    throw err;
+  }
 }
 
 export async function fetchPlots(): Promise<PlotsApiResponse | null> {
-  const r = await apiFetch("/api/plots?split=test");
-  if (!r) return null;
-  return (await r.json()) as PlotsApiResponse;
+  try {
+    const r = await apiFetch("/api/plots?split=test");
+    return (await r.json()) as PlotsApiResponse;
+  } catch {
+    return null;
+  }
 }
 
 /** Map API JSON to strict `LandPlot` (drops unknown keys). */
@@ -104,10 +149,13 @@ export function normalizeLandPlot(raw: unknown): LandPlot {
 export async function fetchTileTimeseries(
   tileId: string,
 ): Promise<TimeSeriesPoint[] | null> {
-  const r = await apiFetch(
-    `/api/tiles/${encodeURIComponent(tileId)}/timeseries?split=test`,
-  );
-  if (!r) return null;
-  const j = (await r.json()) as { points: TimeSeriesPoint[] };
-  return j.points ?? null;
+  try {
+    const r = await apiFetch(
+      `/api/tiles/${encodeURIComponent(tileId)}/timeseries?split=test`,
+    );
+    const j = (await r.json()) as { points: TimeSeriesPoint[] };
+    return j.points ?? null;
+  } catch {
+    return null;
+  }
 }
