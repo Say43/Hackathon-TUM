@@ -9,7 +9,12 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from .config import get_data_dir, get_model_path, get_pred_dir
+from .config import (
+    describe_data_dir_resolution,
+    get_data_dir,
+    get_model_path,
+    get_pred_dir,
+)
 from .ml_service import (
     build_timeseries,
     get_model,
@@ -57,6 +62,38 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def _log_resolved_paths() -> None:
+    """Prints where the API is looking for the dataset on boot.
+
+    Makes path-misconfiguration obvious in the server console (or Jupyter
+    terminal) without having to hit /api/debug/paths.
+    """
+    info = describe_data_dir_resolution()
+    banner = [
+        "=" * 72,
+        " Dataset path resolution",
+        f"   repoRoot          : {info['repoRoot']}",
+        f"   modelTrainingDir  : {info['modelTrainingDir']}",
+        f"   env source        : {info['envVar']['source']}",
+        f"   env raw value     : {info['envVar']['rawValue']}",
+        f"   env resolved abs  : {info['envVar']['resolvedAbsolute']}",
+        f"   env resolved ok   : {info['envVar']['resolvedExists']}",
+        "   default candidates:",
+    ]
+    for c in info["defaultCandidates"]:
+        banner.append(f"     - exists={c['exists']!s:<5} {c['path']}")
+    banner.extend(
+        [
+            f"   ==> resolved      : {info['resolved']}",
+            f"   ==> exists        : {info['resolvedExists']}",
+            "=" * 72,
+        ]
+    )
+    for line in banner:
+        logger.info(line)
 
 
 @app.get("/api/health")
@@ -164,15 +201,67 @@ def list_plots(
     return {"split": split, "plots": plots, "errors": errors}
 
 
+@app.get("/api/debug/paths")
+def debug_paths() -> dict:
+    """Show every path the API is aware of + whether it exists on disk.
+
+    Hit this when you see a 503 from /api/tiles/.../timeseries so you can see
+    which candidate paths were probed on THIS server.
+    """
+    model_path = get_model_path()
+    pred_dir = get_pred_dir()
+    resolution = describe_data_dir_resolution()
+    paths = paths_from_data_dir(get_data_dir())
+    sample_s1_dir: str | None = None
+    sample_s2_dir: str | None = None
+    if paths is not None and paths.data_dir.exists():
+        s1 = paths.data_dir / "sentinel-1" / "test"
+        s2 = paths.data_dir / "sentinel-2" / "test"
+        sample_s1_dir = str(s1) if s1.exists() else f"MISSING: {s1}"
+        sample_s2_dir = str(s2) if s2.exists() else f"MISSING: {s2}"
+    return {
+        "cwd": str(Path.cwd()),
+        "envVars": {
+            "MAKEATHON_DATA_DIR": os.environ.get("MAKEATHON_DATA_DIR"),
+            "DATA_DIR": os.environ.get("DATA_DIR"),
+            "MODEL_PATH": os.environ.get("MODEL_PATH"),
+            "PRED_DIR": os.environ.get("PRED_DIR"),
+        },
+        "model": {
+            "path": str(model_path),
+            "exists": model_path.exists(),
+        },
+        "predictions": {
+            "dir": str(pred_dir),
+            "exists": pred_dir.exists(),
+            "predTifs": sorted(p.name for p in pred_dir.glob("pred_*.tif"))
+            if pred_dir.exists()
+            else [],
+        },
+        "dataset": resolution,
+        "sentinelProbe": {
+            "s1TestDir": sample_s1_dir,
+            "s2TestDir": sample_s2_dir,
+        },
+    }
+
+
 @app.get("/api/tiles/{tile_id}/timeseries")
 def tile_timeseries(tile_id: str, split: str = Query("test")) -> dict:
     if split not in ("train", "test"):
         raise HTTPException(400, detail="split must be train or test")
     paths = paths_from_data_dir(get_data_dir())
     if paths is None:
+        info = describe_data_dir_resolution()
+        probed = [c["path"] for c in info["defaultCandidates"]]
         raise HTTPException(
             503,
-            detail="Dataset root not found. Set MAKEATHON_DATA_DIR or place data under data/makeathon-challenge.",
+            detail=(
+                "Dataset root not found. "
+                f"MAKEATHON_DATA_DIR={info['envVar']['rawValue']!r}. "
+                f"Probed defaults: {probed}. "
+                "Call /api/debug/paths for a full breakdown."
+            ),
         )
     try:
         points = build_timeseries(paths, tile_id, split)
