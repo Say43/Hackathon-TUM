@@ -22,7 +22,7 @@ export function Topbar({
   monitoringActive: boolean;
   onToggleMonitoring?: () => void;
   tileOptions: LandPlot[];
-  dataSource: "api" | "mock";
+  dataSource: "api" | "unavailable";
   apiLoading?: boolean;
   apiHealthy?: boolean;
 }) {
@@ -76,7 +76,7 @@ export function Topbar({
                 Model API
               </span>
             ) : (
-              <span className="text-slate-500">Mock data</span>
+              <span className="text-rose-400">API unavailable</span>
             )}
           </div>
 

@@ -115,7 +115,7 @@ export function ValidationPanel({
             type="button"
             className="btn-primary"
             onClick={() => {
-              act("Review packet exported (mock).");
+              act("Review packet exported.");
               onExport?.();
             }}
           >

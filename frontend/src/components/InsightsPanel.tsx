@@ -1,18 +1,19 @@
 import { Activity, Radar, TreeDeciduous } from "lucide-react";
-import type { LandPlot, NavKey } from "../types";
+import type { ActivityItem, LandPlot, NavKey } from "../types";
 import { StatusBadge } from "./StatusBadge";
 import { RiskBreakdownPanel } from "./RiskBreakdownPanel";
 import { ActivityFeed } from "./ActivityFeed";
-import { ACTIVITY_FEED } from "../data/mock";
 
 export function InsightsPanel({
   plot,
   onNavigate,
   onSelectPlotFromFeed,
+  activityItems,
 }: {
   plot: LandPlot;
   onNavigate: (key: NavKey) => void;
   onSelectPlotFromFeed?: (plotId: string) => void;
+  activityItems: ActivityItem[];
 }) {
   const p = plot.prediction;
   return (
@@ -79,7 +80,7 @@ export function InsightsPanel({
           </h3>
         </div>
         <ActivityFeed
-          items={ACTIVITY_FEED.slice(0, 4)}
+          items={activityItems.slice(0, 4)}
           onSelectPlot={onSelectPlotFromFeed}
           compact
         />

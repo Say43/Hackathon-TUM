@@ -1,12 +1,11 @@
 import { AlertTriangle, Globe2, Layers, Radar, Shield, TreePine } from "lucide-react";
-import type { LandPlot, LayerId } from "../types";
+import type { ActivityItem, LandPlot, LayerId } from "../types";
 import { SummaryCard } from "../components/SummaryCard";
 import { PlotMapPanel } from "../components/PlotMapPanel";
 import { TimeSeriesChart } from "../components/TimeSeriesChart";
 import { ActivityFeed } from "../components/ActivityFeed";
 import { LayerToggle } from "../components/LayerToggle";
 import { PredictionCard } from "../components/PredictionCard";
-import { ACTIVITY_FEED } from "../data/mock";
 import type { TimeSeriesPoint } from "../types";
 import { StatusBadge } from "../components/StatusBadge";
 
@@ -18,6 +17,7 @@ export function OverviewPage({
   onSelectPlot,
   onSelectPlotById,
   previewTimeSeries,
+  activityItems,
 }: {
   plots: LandPlot[];
   selectedPlot: LandPlot;
@@ -26,6 +26,7 @@ export function OverviewPage({
   onSelectPlot: (p: LandPlot) => void;
   onSelectPlotById?: (id: string) => void;
   previewTimeSeries: TimeSeriesPoint[];
+  activityItems: ActivityItem[];
 }) {
   const total = plots.length;
   const flagged = plots.filter((p) => p.prediction.deforestationDetected).length;
@@ -138,7 +139,7 @@ export function OverviewPage({
             <Radar className="h-4 w-4 text-sky-500" />
             <h3 className="text-sm font-semibold text-white">Recent monitoring events</h3>
           </div>
-          <ActivityFeed items={ACTIVITY_FEED} onSelectPlot={onSelectPlotById} />
+          <ActivityFeed items={activityItems} onSelectPlot={onSelectPlotById} />
         </div>
         <div className="panel p-4">
           <h3 className="text-sm font-semibold text-white">Recent model detections</h3>

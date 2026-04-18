@@ -1,5 +1,4 @@
 import { Globe2 } from "lucide-react";
-import { REGIONS } from "../data/mock";
 
 export function RegionFilter({
   value,
@@ -11,7 +10,7 @@ export function RegionFilter({
   /** When set (e.g. API-driven plots), filter options match plot regions. */
   regions?: string[];
 }) {
-  const options = regions?.length ? regions : [...REGIONS];
+  const options = regions?.length ? regions : [];
   return (
     <div className="relative">
       <Globe2 className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
