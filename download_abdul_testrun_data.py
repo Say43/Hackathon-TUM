@@ -15,6 +15,7 @@ DEFAULT_BUCKET_NAME = "osapiens-terra-challenge"
 DEFAULT_FOLDER_NAME = "makeathon-challenge"
 DEFAULT_LOCAL_DIR = "./model-training/data/abdul-testrun"
 DEFAULT_SAMPLE_RATIO = 0.02
+DEFAULT_SAMPLE_OFFSET = 1
 
 
 def _list_s3_keys(bucket_name: str, prefix: str) -> list[str]:
@@ -64,7 +65,22 @@ def _extract_tile_ref(key: str, root_prefix: str) -> tuple[str, str] | None:
     return None
 
 
-def _choose_tile_ids(keys: list[str], prefix: str, sample_ratio: float) -> tuple[set[str], set[str]]:
+def _select_window(tile_ids: set[str], sample_ratio: float, sample_offset: int) -> set[str]:
+    ordered = sorted(tile_ids)
+    sample_count = max(1, math.ceil(len(ordered) * sample_ratio))
+    if sample_count >= len(ordered):
+        return set(ordered)
+    max_start = max(0, len(ordered) - sample_count)
+    start = min(max(sample_offset, 0), max_start)
+    return set(ordered[start : start + sample_count])
+
+
+def _choose_tile_ids(
+    keys: list[str],
+    prefix: str,
+    sample_ratio: float,
+    sample_offset: int,
+) -> tuple[set[str], set[str]]:
     labelled_train_tile_ids: set[str] = set()
     test_tile_ids: set[str] = set()
     for key in keys:
@@ -83,16 +99,15 @@ def _choose_tile_ids(keys: list[str], prefix: str, sample_ratio: float) -> tuple
     if not test_tile_ids:
         raise RuntimeError("No test tile ids found while building the 2% sample.")
 
-    train_sample_count = max(1, math.ceil(len(labelled_train_tile_ids) * sample_ratio))
-    test_sample_count = max(1, math.ceil(len(test_tile_ids) * sample_ratio))
-    selected_train = set(sorted(labelled_train_tile_ids)[:train_sample_count])
-    selected_test = set(sorted(test_tile_ids)[:test_sample_count])
+    selected_train = _select_window(labelled_train_tile_ids, sample_ratio, sample_offset)
+    selected_test = _select_window(test_tile_ids, sample_ratio, sample_offset)
     logger.info(
-        "Selected %d/%d labelled train tile ids and %d/%d test tile ids for Abdul test run.",
+        "Selected %d/%d labelled train tile ids and %d/%d test tile ids for Abdul test run (offset=%d).",
         len(selected_train),
         len(labelled_train_tile_ids),
         len(selected_test),
         len(test_tile_ids),
+        sample_offset,
     )
     return selected_train, selected_test
 
@@ -128,6 +143,7 @@ def download_s3_folder(
     folder_name: str,
     local_dir: str = DEFAULT_LOCAL_DIR,
     sample_ratio: float = DEFAULT_SAMPLE_RATIO,
+    sample_offset: int = DEFAULT_SAMPLE_OFFSET,
 ) -> None:
     """Download a small, coherent subset of the Makeathon dataset for Abdul's test run."""
     if not 0 < sample_ratio <= 1:
@@ -151,7 +167,12 @@ def download_s3_folder(
             )
             return
 
-        selected_train_tile_ids, selected_test_tile_ids = _choose_tile_ids(keys, prefix, sample_ratio)
+        selected_train_tile_ids, selected_test_tile_ids = _choose_tile_ids(
+            keys,
+            prefix,
+            sample_ratio,
+            sample_offset,
+        )
         selected_keys = _filter_keys_for_sample(
             keys,
             prefix,
@@ -217,6 +238,12 @@ if __name__ == "__main__":
     parser.add_argument("--folder_name", default=DEFAULT_FOLDER_NAME, help="Name of the folder inside the S3 bucket")
     parser.add_argument("--local_dir", default=DEFAULT_LOCAL_DIR, help="Local directory to save files")
     parser.add_argument("--sample_ratio", type=float, default=DEFAULT_SAMPLE_RATIO, help="Fraction of tile ids to keep")
+    parser.add_argument(
+        "--sample_offset",
+        type=int,
+        default=DEFAULT_SAMPLE_OFFSET,
+        help="Start offset into the sorted tile-id list, to select a different but equally sized sample",
+    )
     args = parser.parse_args()
 
     download_s3_folder(
@@ -224,5 +251,6 @@ if __name__ == "__main__":
         folder_name=args.folder_name,
         local_dir=args.local_dir,
         sample_ratio=args.sample_ratio,
+        sample_offset=args.sample_offset,
     )
     verify_download(local_dir=args.local_dir, folder_name=args.folder_name)
