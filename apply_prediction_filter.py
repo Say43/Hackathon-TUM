@@ -33,6 +33,13 @@ def find_latest_s2_scene(data_dir: Path, tile_id: str, split: str = "test") -> P
     return scenes[-1] if scenes else None
 
 
+def list_s2_scenes(data_dir: Path, tile_id: str, split: str = "test") -> list[Path]:
+    s2_dir = data_dir / "sentinel-2" / split / f"{tile_id}__s2_l2a"
+    if not s2_dir.exists():
+        return []
+    return sorted(s2_dir.glob("*.tif"))
+
+
 def _normalize_band(band: np.ndarray) -> np.ndarray:
     band = band.astype(np.float32)
     valid = np.isfinite(band) & (band > 0)
@@ -88,9 +95,64 @@ def derive_cloud_mask_from_s2(
     return cloud_mask.astype(bool)
 
 
+def derive_temporal_consistency_mask(
+    s2_paths: list[Path],
+    target_shape: tuple[int, int],
+    min_support: int = 2,
+) -> np.ndarray | None:
+    if len(s2_paths) < 2:
+        return None
+
+    ndvi_series: list[np.ndarray] = []
+    valid_series: list[np.ndarray] = []
+
+    for s2_path in s2_paths:
+        with rasterio.open(s2_path) as src:
+            read_kwargs = {
+                "out_shape": (target_shape[0], target_shape[1]),
+                "resampling": Resampling.bilinear,
+            }
+            red = src.read(4, **read_kwargs).astype(np.float32)
+            nir = src.read(8, **read_kwargs).astype(np.float32)
+
+        valid = np.isfinite(red) & np.isfinite(nir) & (red > 0) & (nir > 0)
+        ndvi = np.full(target_shape, np.nan, dtype=np.float32)
+        ndvi[valid] = (nir[valid] - red[valid]) / (nir[valid] + red[valid] + 1e-6)
+        ndvi_series.append(ndvi)
+        valid_series.append(valid)
+
+    ndvi_stack = np.stack(ndvi_series, axis=0)
+    valid_stack = np.stack(valid_series, axis=0)
+
+    low_vegetation = np.where(valid_stack, ndvi_stack < 0.42, False)
+
+    running_max = np.maximum.accumulate(np.where(np.isfinite(ndvi_stack), ndvi_stack, -1.0), axis=0)
+    drop_from_best = np.where(np.isfinite(ndvi_stack), running_max - ndvi_stack, 0.0)
+    sudden_drop = np.where(valid_stack, drop_from_best > 0.18, False)
+
+    month_to_month_drop = np.zeros_like(ndvi_stack, dtype=bool)
+    if ndvi_stack.shape[0] >= 2:
+        delta = ndvi_stack[:-1] - ndvi_stack[1:]
+        valid_delta = valid_stack[:-1] & valid_stack[1:]
+        month_to_month_drop[1:] = np.where(valid_delta, delta > 0.12, False)
+
+    support_count = (
+        low_vegetation.astype(np.uint8)
+        + sudden_drop.astype(np.uint8)
+        + month_to_month_drop.astype(np.uint8)
+    )
+    support_count = np.sum(support_count > 0, axis=0)
+
+    temporal_mask = support_count >= min_support
+    temporal_mask = ndimage.binary_opening(temporal_mask, structure=np.ones((2, 2), dtype=bool))
+    temporal_mask = ndimage.binary_closing(temporal_mask, structure=np.ones((3, 3), dtype=bool))
+    return temporal_mask.astype(bool)
+
+
 def filter_mask(
     mask: np.ndarray,
     cloud_mask: np.ndarray | None = None,
+    temporal_mask: np.ndarray | None = None,
     opening_size: int = 2,
     closing_size: int = 2,
     min_component_size: int = 64,
@@ -98,6 +160,8 @@ def filter_mask(
     binary = mask > 0
     if cloud_mask is not None:
         binary = binary & ~cloud_mask
+    if temporal_mask is not None:
+        binary = binary & temporal_mask
 
     structure = np.ones((opening_size, opening_size), dtype=bool)
     opened = ndimage.binary_opening(binary, structure=structure)
@@ -125,14 +189,19 @@ def filter_raster(
     tile_id = extract_tile_id(input_path)
     cloud_mask = None
     s2_path = None
+    temporal_mask = None
+    s2_paths: list[Path] = []
     if data_dir is not None:
         s2_path = find_latest_s2_scene(data_dir, tile_id, split=split)
+        s2_paths = list_s2_scenes(data_dir, tile_id, split=split)
         if s2_path is not None:
             cloud_mask = derive_cloud_mask_from_s2(s2_path, target_shape=arr.shape)
+        temporal_mask = derive_temporal_consistency_mask(s2_paths, target_shape=arr.shape)
 
     filtered = filter_mask(
         arr,
         cloud_mask=cloud_mask,
+        temporal_mask=temporal_mask,
         opening_size=opening_size,
         closing_size=closing_size,
         min_component_size=min_component_size,
@@ -142,14 +211,24 @@ def filter_raster(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with rasterio.open(output_path, "w", **profile) as dst:
         dst.write(filtered, 1)
+    positive_before = arr > 0
+    positive_after_cloud_mask = positive_before & ~cloud_mask if cloud_mask is not None else positive_before
+    positive_after_temporal_mask = (
+        positive_after_cloud_mask & temporal_mask if temporal_mask is not None else positive_after_cloud_mask
+    )
+
     diagnostics = {
         "tile_id": tile_id,
         "s2_scene": str(s2_path) if s2_path is not None else None,
-        "positive_before": int((arr > 0).sum()),
-        "positive_after_cloud": int(((arr > 0) & ~cloud_mask).sum()) if cloud_mask is not None else int((arr > 0).sum()),
+        "s2_scene_count": len(s2_paths),
+        "positive_before": int(positive_before.sum()),
+        "positive_after_cloud": int(positive_after_cloud_mask.sum()),
+        "positive_after_temporal": int(positive_after_temporal_mask.sum()),
         "positive_after_filter": int((filtered > 0).sum()),
         "cloud_pixels": int(cloud_mask.sum()) if cloud_mask is not None else 0,
-        "cloud_suppressed_positive_pixels": int(((arr > 0) & cloud_mask).sum()) if cloud_mask is not None else 0,
+        "temporal_support_pixels": int(temporal_mask.sum()) if temporal_mask is not None else 0,
+        "cloud_suppressed_positive_pixels": int((positive_before & cloud_mask).sum()) if cloud_mask is not None else 0,
+        "temporally_suppressed_positive_pixels": int((positive_after_cloud_mask & ~temporal_mask).sum()) if temporal_mask is not None else 0,
     }
     return output_path, diagnostics
 
