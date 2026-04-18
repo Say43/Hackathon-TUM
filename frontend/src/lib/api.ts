@@ -1,6 +1,6 @@
 import type { LandPlot, TimeSeriesPoint } from "../types";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://129.212.191.202:8000";
 
 export type PlotsApiResponse = {
   split: string;
