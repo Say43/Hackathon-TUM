@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .vscode/
 data/
+!frontend/src/data/
+!frontend/src/data/mock.ts
 models/
 outputs/
-
