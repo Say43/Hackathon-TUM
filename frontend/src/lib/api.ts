@@ -17,24 +17,38 @@ export type HealthResponse = {
   error?: string | null;
 };
 
-export async function fetchHealth(): Promise<HealthResponse | null> {
-  try {
-    const r = await fetch(`${API_BASE}/api/health`);
-    if (!r.ok) return null;
-    return (await r.json()) as HealthResponse;
-  } catch {
-    return null;
+function candidateApiBases(): string[] {
+  const bases = [
+    API_BASE,
+    "",
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
+  ];
+  return [...new Set(bases.map((b) => b.trim()))];
+}
+
+async function apiFetch(path: string): Promise<Response | null> {
+  for (const base of candidateApiBases()) {
+    try {
+      const r = await fetch(`${base}${path}`);
+      if (r.ok) return r;
+    } catch {
+      continue;
+    }
   }
+  return null;
+}
+
+export async function fetchHealth(): Promise<HealthResponse | null> {
+  const r = await apiFetch("/api/health");
+  if (!r) return null;
+  return (await r.json()) as HealthResponse;
 }
 
 export async function fetchPlots(): Promise<PlotsApiResponse | null> {
-  try {
-    const r = await fetch(`${API_BASE}/api/plots?split=test`);
-    if (!r.ok) return null;
-    return (await r.json()) as PlotsApiResponse;
-  } catch {
-    return null;
-  }
+  const r = await apiFetch("/api/plots?split=test");
+  if (!r) return null;
+  return (await r.json()) as PlotsApiResponse;
 }
 
 /** Map API JSON to strict `LandPlot` (drops unknown keys). */
@@ -92,14 +106,10 @@ export function normalizeLandPlot(raw: unknown): LandPlot {
 export async function fetchTileTimeseries(
   tileId: string,
 ): Promise<TimeSeriesPoint[] | null> {
-  try {
-    const r = await fetch(
-      `${API_BASE}/api/tiles/${encodeURIComponent(tileId)}/timeseries?split=test`,
-    );
-    if (!r.ok) return null;
-    const j = (await r.json()) as { points: TimeSeriesPoint[] };
-    return j.points ?? null;
-  } catch {
-    return null;
-  }
+  const r = await apiFetch(
+    `/api/tiles/${encodeURIComponent(tileId)}/timeseries?split=test`,
+  );
+  if (!r) return null;
+  const j = (await r.json()) as { points: TimeSeriesPoint[] };
+  return j.points ?? null;
 }
