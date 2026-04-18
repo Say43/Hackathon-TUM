@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { LandPlot } from "../types";
 import { PlotSelector } from "../components/PlotSelector";
 import { TimeSeriesChart, type TimeSeriesMode } from "../components/TimeSeriesChart";
-import { getTimeSeriesForPlot } from "../data/mock";
+import type { TimeSeriesPoint } from "../types";
 import { cn } from "../lib/cn";
 
 export function TimeSeriesPage({
@@ -10,17 +10,20 @@ export function TimeSeriesPage({
   selectedPlot,
   search,
   onSelectPlot,
+  timeSeries,
 }: {
   plots: LandPlot[];
   selectedPlot: LandPlot;
   search: string;
   onSelectPlot: (p: LandPlot) => void;
+  timeSeries: TimeSeriesPoint[];
 }) {
   const [mode, setMode] = useState<TimeSeriesMode>("both");
-  const series = getTimeSeriesForPlot(selectedPlot.id);
+  const series = timeSeries;
+  const n = Math.max(1, series.length);
   const confSeries = series.map((d, i) => ({
     ...d,
-    conf: Math.min(0.95, 0.55 + (i / series.length) * 0.35 + (d.eventFlag ? 0.08 : 0)),
+    conf: Math.min(0.95, 0.55 + (i / n) * 0.35 + (d.eventFlag ? 0.08 : 0)),
   }));
 
   return (

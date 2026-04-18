@@ -6,7 +6,8 @@ import { TimeSeriesChart } from "../components/TimeSeriesChart";
 import { ActivityFeed } from "../components/ActivityFeed";
 import { LayerToggle } from "../components/LayerToggle";
 import { PredictionCard } from "../components/PredictionCard";
-import { ACTIVITY_FEED, getTimeSeriesForPlot } from "../data/mock";
+import { ACTIVITY_FEED } from "../data/mock";
+import type { TimeSeriesPoint } from "../types";
 import { StatusBadge } from "../components/StatusBadge";
 
 export function OverviewPage({
@@ -16,6 +17,7 @@ export function OverviewPage({
   onToggleLayer,
   onSelectPlot,
   onSelectPlotById,
+  previewTimeSeries,
 }: {
   plots: LandPlot[];
   selectedPlot: LandPlot;
@@ -23,6 +25,7 @@ export function OverviewPage({
   onToggleLayer: (id: LayerId) => void;
   onSelectPlot: (p: LandPlot) => void;
   onSelectPlotById?: (id: string) => void;
+  previewTimeSeries: TimeSeriesPoint[];
 }) {
   const total = plots.length;
   const flagged = plots.filter((p) => p.prediction.deforestationDetected).length;
@@ -35,7 +38,7 @@ export function OverviewPage({
     .sort((a, b) => b.prediction.confidence - a.prediction.confidence)
     .slice(0, 3);
 
-  const series = getTimeSeriesForPlot(selectedPlot.id);
+  const series = previewTimeSeries;
   const avgRisk = Math.round(
     plots.reduce((s, p) => s + p.riskScore, 0) / Math.max(plots.length, 1),
   );

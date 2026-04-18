@@ -4,10 +4,14 @@ import { REGIONS } from "../data/mock";
 export function RegionFilter({
   value,
   onChange,
+  regions,
 }: {
   value: string;
   onChange: (region: string) => void;
+  /** When set (e.g. API-driven plots), filter options match plot regions. */
+  regions?: string[];
 }) {
+  const options = regions?.length ? regions : [...REGIONS];
   return (
     <div className="relative">
       <Globe2 className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
@@ -17,9 +21,9 @@ export function RegionFilter({
         className="input appearance-none pl-9 pr-8 font-mono text-xs"
       >
         <option value="all">All regions</option>
-        {REGIONS.map((r) => (
+        {options.map((r) => (
           <option key={r} value={r}>
-            {r}
+            {r.length > 48 ? `${r.slice(0, 45)}…` : r}
           </option>
         ))}
       </select>

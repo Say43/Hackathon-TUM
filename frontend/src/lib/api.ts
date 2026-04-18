@@ -1,0 +1,105 @@
+import type { LandPlot, TimeSeriesPoint } from "../types";
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+
+export type PlotsApiResponse = {
+  split: string;
+  plots: unknown[];
+  errors?: string[];
+};
+
+export type HealthResponse = {
+  status: string;
+  modelLoaded: boolean;
+  datasetPresent: boolean;
+  cachedPredictionsPresent: boolean;
+  testTiles: number;
+  error?: string | null;
+};
+
+export async function fetchHealth(): Promise<HealthResponse | null> {
+  try {
+    const r = await fetch(`${API_BASE}/api/health`);
+    if (!r.ok) return null;
+    return (await r.json()) as HealthResponse;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchPlots(): Promise<PlotsApiResponse | null> {
+  try {
+    const r = await fetch(`${API_BASE}/api/plots?split=test`);
+    if (!r.ok) return null;
+    return (await r.json()) as PlotsApiResponse;
+  } catch {
+    return null;
+  }
+}
+
+/** Map API JSON to strict `LandPlot` (drops unknown keys). */
+export function normalizeLandPlot(raw: unknown): LandPlot {
+  const o = raw as Record<string, unknown>;
+  const pred = o.prediction as LandPlot["prediction"];
+  const weak = (o.weakLabels ?? []) as LandPlot["weakLabels"];
+  const overlays = (o.overlays ?? []) as LandPlot["overlays"];
+  return {
+    id: String(o.id),
+    tileId: String(o.tileId),
+    region: String(o.region),
+    country: String(o.country ?? ""),
+    areaHa: Number(o.areaHa ?? 0),
+    forestCoverPct: Number(o.forestCoverPct ?? 0),
+    centroidLat: Number(o.centroidLat ?? 0),
+    centroidLng: Number(o.centroidLng ?? 0),
+    prediction: {
+      deforestationDetected: Boolean(pred.deforestationDetected),
+      confidence: Number(pred.confidence),
+      eventMonth: String(pred.eventMonth ?? ""),
+      modelVersion: String(pred.modelVersion ?? ""),
+      notes: String(pred.notes ?? ""),
+      labelAgreement: (["agreement", "conflict", "uncertain"].includes(
+        String(pred.labelAgreement),
+      )
+        ? pred.labelAgreement
+        : "uncertain") as LandPlot["prediction"]["labelAgreement"],
+    },
+    weakLabels: weak.map((w) => ({
+      labelSource: String(w.labelSource),
+      label: w.label,
+      confidence: Number(w.confidence),
+      acquisitionMonth: w.acquisitionMonth,
+    })),
+    riskScore: Number(o.riskScore ?? 0),
+    eudrRiskTier: o.eudrRiskTier as LandPlot["eudrRiskTier"],
+    reviewStatus: o.reviewStatus as LandPlot["reviewStatus"],
+    signalStrength: Number(o.signalStrength ?? 0),
+    labelConsistency: Number(o.labelConsistency ?? 0),
+    temporalConsistency: Number(o.temporalConsistency ?? 0),
+    regionAnomalyRisk: Number(o.regionAnomalyRisk ?? 0),
+    evidenceCompleteness: Number(o.evidenceCompleteness ?? 0),
+    dataQualityConfidence: Number(o.dataQualityConfidence ?? 0),
+    humanReviewNeeded: Boolean(o.humanReviewNeeded),
+    complianceRelevance: o.complianceRelevance as LandPlot["complianceRelevance"],
+    overlays,
+    changeWindowStart: String(o.changeWindowStart ?? ""),
+    changeWindowEnd: String(o.changeWindowEnd ?? ""),
+    heatmap: o.heatmap as number[][] | undefined,
+    apiSource: o._apiSource as string | undefined,
+  };
+}
+
+export async function fetchTileTimeseries(
+  tileId: string,
+): Promise<TimeSeriesPoint[] | null> {
+  try {
+    const r = await fetch(
+      `${API_BASE}/api/tiles/${encodeURIComponent(tileId)}/timeseries?split=test`,
+    );
+    if (!r.ok) return null;
+    const j = (await r.json()) as { points: TimeSeriesPoint[] };
+    return j.points ?? null;
+  } catch {
+    return null;
+  }
+}

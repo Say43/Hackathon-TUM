@@ -5,8 +5,7 @@ import { PlotMapPanel } from "./PlotMapPanel";
 import { TimeSeriesChart, type TimeSeriesMode } from "./TimeSeriesChart";
 import { LabelComparisonCard } from "./LabelComparisonCard";
 import { PredictionCard } from "./PredictionCard";
-import { getTimeSeriesForPlot } from "../data/mock";
-import type { LayerId } from "../types";
+import type { LayerId, TimeSeriesPoint } from "../types";
 
 const DEFAULT_LAYERS: Record<LayerId, boolean> = {
   sentinel1: true,
@@ -18,14 +17,16 @@ const DEFAULT_LAYERS: Record<LayerId, boolean> = {
 
 export function ValidationPanel({
   plot,
+  timeSeries,
   onExport,
 }: {
   plot: LandPlot;
+  timeSeries: TimeSeriesPoint[];
   onExport?: () => void;
 }) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [tsMode, setTsMode] = useState<TimeSeriesMode>("both");
-  const series = getTimeSeriesForPlot(plot.id);
+  const series = timeSeries;
 
   const act = (msg: string) => {
     setFeedback(msg);
