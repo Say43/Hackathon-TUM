@@ -12,6 +12,13 @@ DEFAULT_DATA_DIR = COLLEAGUE_ROOT / "data" / "makeathon-challenge"
 DEFAULT_RUN_DIR = COLLEAGUE_ROOT / "runs" / "baseline"
 
 
+def _resolve_user_path(value: str) -> str:
+    path = Path(value)
+    if not path.is_absolute():
+        path = (PROJECT_ROOT / path).resolve()
+    return str(path)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Wrapper that runs Abdul Moeez's existing model-training pipeline."
@@ -89,26 +96,32 @@ def build_command(args: argparse.Namespace) -> list[str]:
         cmd.append("--verbose")
 
     cmd.append(args.command)
+    data_dir = _resolve_user_path(args.data_dir)
+    run_dir = _resolve_user_path(args.run_dir)
+    model = _resolve_user_path(args.model)
+    pred_dir = _resolve_user_path(args.pred_dir)
+    geojson_dir = _resolve_user_path(args.geojson_dir)
+    out = _resolve_user_path(args.out)
 
     if args.command == "train":
-        cmd.extend(["--data-dir", args.data_dir, "--model-out", str(Path(args.run_dir) / "model.joblib")])
+        cmd.extend(["--data-dir", data_dir, "--model-out", str(Path(run_dir) / "model.joblib")])
         if args.max_tiles is not None:
             cmd.extend(["--max-tiles", str(args.max_tiles)])
         return cmd
 
     if args.command == "predict":
-        cmd.extend(["--data-dir", args.data_dir, "--model", args.model, "--pred-dir", args.pred_dir])
+        cmd.extend(["--data-dir", data_dir, "--model", model, "--pred-dir", pred_dir])
         if args.threshold is not None:
             cmd.extend(["--threshold", str(args.threshold)])
         return cmd
 
     if args.command == "submit":
-        cmd.extend(["--pred-dir", args.pred_dir, "--geojson-dir", args.geojson_dir, "--out", args.out])
+        cmd.extend(["--pred-dir", pred_dir, "--geojson-dir", geojson_dir, "--out", out])
         if args.min_area_ha is not None:
             cmd.extend(["--min-area-ha", str(args.min_area_ha)])
         return cmd
 
-    cmd.extend(["--data-dir", args.data_dir, "--run-dir", args.run_dir])
+    cmd.extend(["--data-dir", data_dir, "--run-dir", run_dir])
     if args.max_tiles is not None:
         cmd.extend(["--max-tiles", str(args.max_tiles)])
     if args.threshold is not None:
@@ -123,7 +136,7 @@ def main() -> None:
     cmd = build_command(args)
 
     env = os.environ.copy()
-    env.setdefault("MAKEATHON_DATA_DIR", args.data_dir)
+    env.setdefault("MAKEATHON_DATA_DIR", _resolve_user_path(args.data_dir))
 
     subprocess.run(cmd, cwd=str(COLLEAGUE_ROOT), env=env, check=True)
 
