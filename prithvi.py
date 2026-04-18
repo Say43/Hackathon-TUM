@@ -1,6 +1,7 @@
 import argparse
 import importlib.util
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -39,9 +40,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--device",
-        choices=("auto", "cpu", "cuda"),
-        default="auto",
-        help="Torch device selection. Default: auto",
+        choices=("auto", "cpu", "cuda", "mps"),
+        default=None,
+        help="Torch device. Default: $TORCH_DEVICE if set, else 'auto' "
+        "(prefers CUDA, then Apple MPS, then CPU).",
     )
     return parser
 
@@ -54,13 +56,35 @@ def load_local_config(config_path: Path) -> dict:
 
 
 def resolve_device(device_arg: str) -> torch.device:
-    if device_arg == "cuda":
+    """Pick a torch device. Prefer explicit request; 'auto' uses CUDA → MPS → CPU."""
+    d = device_arg.strip().lower()
+    if d == "cuda":
         if not torch.cuda.is_available():
             raise RuntimeError("CUDA was requested, but no CUDA device is available.")
         return torch.device("cuda")
-    if device_arg == "cpu":
+    if d == "mps":
+        if not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
+            raise RuntimeError("MPS was requested, but MPS is not available on this machine.")
+        return torch.device("mps")
+    if d == "cpu":
         return torch.device("cpu")
-    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if d != "auto":
+        raise ValueError(f"Unknown device mode: {device_arg!r}")
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
+
+
+def effective_device_arg(cli_device: str | None) -> str:
+    """CLI `--device` wins; otherwise use TORCH_DEVICE env; else 'auto'."""
+    if cli_device:
+        return cli_device
+    env = os.environ.get("TORCH_DEVICE", "").strip()
+    if env:
+        return env
+    return "auto"
 
 
 def download_model_files(repo_id: str) -> tuple[Path, Path, Path]:
@@ -163,10 +187,10 @@ def run_pipeline(
     image_path: str | Path = DEFAULT_IMAGE_PATH,
     config_path: str | Path = DEFAULT_CONFIG_PATH,
     repo_id: str = DEFAULT_MODEL_REPO,
-    device_arg: str = "auto",
+    device_arg: str | None = None,
 ) -> dict:
     local_config = load_local_config(Path(config_path))
-    device = resolve_device(device_arg)
+    device = resolve_device(effective_device_arg(device_arg))
 
     model, model_config, weights_path = load_model(repo_id, device)
     image_size = resolve_image_size(local_config, model_config)

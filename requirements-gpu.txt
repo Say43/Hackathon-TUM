@@ -1,0 +1,26 @@
+# Optional GPU stack for Prithvi / PyTorch (root-level `prithvi.py`).
+# The baseline Makeathon pipeline (`model-training/`) uses scikit-learn only — it
+# does not use the GPU unless you replace the estimator with a GPU-backed library.
+#
+# 1. Install base deps from `requirements.txt`, then replace CPU torch with CUDA wheels:
+#
+#    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+#
+#    Pick the wheel index that matches your NVIDIA driver / CUDA from:
+#    https://pytorch.org/get-started/locally/
+#
+# 2. On the server, pick a visible GPU (optional):
+#
+#    export CUDA_VISIBLE_DEVICES=0
+#
+# 3. Prefer GPU for Prithvi (CUDA if available, else MPS, else CPU):
+#
+#    export TORCH_DEVICE=auto
+#
+#    Or force CUDA:
+#
+#    export TORCH_DEVICE=cuda
+#
+# 4. Verify:
+#
+#    python scripts/check_gpu.py

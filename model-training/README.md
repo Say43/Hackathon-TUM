@@ -30,6 +30,12 @@ Create the virtual environment and install the dependencies:
 make install
 ```
 
+### GPU note
+
+The **baseline solution** (`solution/model.py`) uses `HistGradientBoostingClassifier` from scikit-learn, which runs on **CPU only**. Switching that pipeline to a GPU means changing the model (for example RAPIDS cuML or a PyTorch model), not flipping a flag.
+
+For **PyTorch** demos at the repo root (for example `prithvi.py`), install a CUDA build of torch and set `TORCH_DEVICE=cuda` or use `--device cuda`. See `../requirements-gpu.txt` and `make install_torch_cuda` in this directory.
+
 Download the dataset:
 
 ```bash

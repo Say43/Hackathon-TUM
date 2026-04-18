@@ -30,3 +30,14 @@ download_data_from_s3:
 	else \
 		uv run --with boto3 --with botocore python download_data.py --local_dir ./data; \
 	fi
+
+# PyTorch with CUDA (Linux). Pick cu124 vs cu121 from https://pytorch.org/get-started/locally/
+# Baseline sklearn training does not use this; only optional torch workflows (e.g. ../prithvi.py).
+install_torch_cuda:
+	@if [ -x .venv/bin/python3 ]; then \
+		.venv/bin/python3 -m pip install --upgrade torch torchvision \
+			--index-url https://download.pytorch.org/whl/cu124; \
+	else \
+		uv pip install torch torchvision \
+			--index-url https://download.pytorch.org/whl/cu124; \
+	fi
