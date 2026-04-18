@@ -1,6 +1,6 @@
 import type { LandPlot, TimeSeriesPoint } from "../types";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://129.212.191.202:8000";
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export type PlotsApiResponse = {
   split: string;
@@ -21,6 +21,8 @@ function candidateApiBases(): string[] {
   const bases = [
     API_BASE,
     "",
+    "http://129.212.191.202/proxy/8000",
+    "http://129.212.191.202:8000",
   ];
   return [...new Set(bases.map((b) => b.trim()))];
 }
