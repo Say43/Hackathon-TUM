@@ -1,122 +1,66 @@
-import { Bell, Database, Search, User } from "lucide-react";
-import type { LandPlot } from "../types";
-import { StatusBadge } from "../components/StatusBadge";
-import { cn } from "../lib/cn";
+import { CircleDot, Database, Server } from "lucide-react";
+import type { HealthResponse } from "../types/aef";
+import { API_BASE, IS_API_CONFIGURED } from "../lib/api";
 
 export function Topbar({
-  search,
-  onSearch,
-  tileValue,
-  onTileChange,
-  monitoringActive,
-  onToggleMonitoring,
-  tileOptions,
-  dataSource,
-  apiLoading,
-  apiHealthy,
+  health,
+  loading,
 }: {
-  search: string;
-  onSearch: (v: string) => void;
-  tileValue: string;
-  onTileChange: (tileId: string) => void;
-  monitoringActive: boolean;
-  onToggleMonitoring?: () => void;
-  tileOptions: LandPlot[];
-  dataSource: "api" | "unavailable";
-  apiLoading?: boolean;
-  apiHealthy?: boolean;
+  health: HealthResponse | null;
+  loading: boolean;
 }) {
+  const ok = health?.status === "ok";
+  const tone = !IS_API_CONFIGURED
+    ? "text-rose-300"
+    : loading
+      ? "text-slate-300"
+      : ok
+        ? "text-emerald-300"
+        : "text-amber-300";
+  const status = !IS_API_CONFIGURED
+    ? "API URL not configured"
+    : loading
+      ? "Checking…"
+      : health?.status === "unreachable"
+        ? "API unreachable"
+        : ok
+          ? "API healthy"
+          : "API degraded";
   return (
     <header className="sticky top-0 z-20 border-b border-slate-800/80 bg-obsidian-950/90 px-4 py-3 backdrop-blur-md">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-base font-semibold tracking-tight text-white">
-            osapiens Deforestation Monitor
+            AlphaEarth Foundations Explorer
           </h1>
           <p className="text-[11px] text-slate-500">
-            Earth observation · EUDR-aligned risk · Human validation
+            64-dim AEF embeddings · weak deforestation supervision · Makeathon
+            2026
           </p>
         </div>
 
-        <div className="flex flex-1 flex-wrap items-center justify-end gap-2 md:min-w-0">
-          <div className="relative hidden min-w-[200px] max-w-md flex-1 md:block">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            <input
-              value={search}
-              onChange={(e) => onSearch(e.target.value)}
-              placeholder="Search tile ID, region, plot…"
-              className="input pl-9 text-xs"
-            />
+        <div className="flex items-center gap-2 text-[11px]">
+          <div className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-obsidian-900 px-2 py-1">
+            <Server className="h-3.5 w-3.5 text-slate-500" />
+            <span className={tone}>
+              <CircleDot className="mr-1 inline h-2.5 w-2.5" />
+              {status}
+            </span>
           </div>
-
-          <select
-            value={tileValue}
-            onChange={(e) => onTileChange(e.target.value)}
-            className={cn(
-              "input max-w-[220px] font-mono text-xs",
-              "hidden sm:block",
-            )}
-          >
-            {tileOptions.map((p) => (
-              <option key={p.id} value={p.tileId}>
-                {p.tileId}
-              </option>
-            ))}
-          </select>
-
-          <div
-            className="hidden items-center gap-1.5 rounded-lg border border-slate-800 bg-obsidian-900 px-2 py-1 text-[10px] font-medium text-slate-400 lg:flex"
-            title="Backend / model data source"
-          >
-            <Database className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-            {apiLoading ? (
-              <span>API…</span>
-            ) : dataSource === "api" ? (
-              <span className={apiHealthy ? "text-emerald-400" : "text-amber-400"}>
-                Model API
-              </span>
-            ) : (
-              <span className="text-rose-400">API unavailable</span>
-            )}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onToggleMonitoring?.()}
-            className="rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50"
-            title="Toggle monitoring pipeline"
-          >
-            <StatusBadge
-              tone={monitoringActive ? "sky" : "slate"}
-              icon={
-                <span
-                  className={cn(
-                    "h-1.5 w-1.5 rounded-full",
-                    monitoringActive ? "bg-sky-400 animate-pulse" : "bg-slate-500",
-                  )}
-                />
-              }
+          {IS_API_CONFIGURED && (
+            <div
+              className="hidden items-center gap-1.5 rounded-lg border border-slate-800 bg-obsidian-900 px-2 py-1 text-slate-500 md:flex"
+              title="VITE_API_BASE_URL"
             >
-              {monitoringActive ? "Monitoring Active" : "Monitoring Paused"}
-            </StatusBadge>
-          </button>
-
-          <button
-            type="button"
-            className="grid h-9 w-9 place-items-center rounded-lg border border-slate-800 bg-obsidian-900 text-slate-400 hover:text-white"
-            aria-label="Notifications"
-          >
-            <Bell className="h-4 w-4" />
-          </button>
-          <div className="flex items-center gap-2 rounded-lg border border-slate-800 bg-obsidian-900 px-2 py-1">
-            <div className="grid h-7 w-7 place-items-center rounded-md bg-slate-800 text-slate-400">
-              <User className="h-4 w-4" />
+              <Database className="h-3.5 w-3.5" />
+              <span className="font-mono">{API_BASE}</span>
             </div>
-            <div className="hidden text-left sm:block">
-              <p className="text-[11px] font-semibold text-slate-200">Reviewer</p>
-              <p className="text-[10px] text-slate-500">Compliance</p>
+          )}
+          {health?.dataDir && (
+            <div className="hidden max-w-[280px] items-center gap-1.5 truncate rounded-lg border border-slate-800 bg-obsidian-900 px-2 py-1 text-slate-500 lg:flex">
+              <span className="truncate font-mono">{health.dataDir}</span>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </header>

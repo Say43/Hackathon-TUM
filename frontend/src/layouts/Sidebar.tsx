@@ -1,23 +1,20 @@
 import {
-  Activity,
   BarChart3,
-  CheckSquare,
+  Boxes,
   Globe2,
   LayoutDashboard,
-  LineChart,
-  Radar,
-  Satellite,
+  Layers,
+  Sparkles,
 } from "lucide-react";
-import type { NavKey } from "../types";
+import type { NavKey } from "../types/aef";
 import { cn } from "../lib/cn";
 
 const NAV: { id: NavKey; label: string; Icon: typeof LayoutDashboard }[] = [
   { id: "overview", label: "Overview", Icon: LayoutDashboard },
-  { id: "plots", label: "Land Plots", Icon: Globe2 },
-  { id: "timeseries", label: "Time Series", Icon: LineChart },
-  { id: "predictions", label: "Predictions", Icon: Satellite },
-  { id: "risk", label: "Risk Analysis", Icon: BarChart3 },
-  { id: "validation", label: "Validation", Icon: CheckSquare },
+  { id: "embedding-map", label: "Embedding Map", Icon: Globe2 },
+  { id: "channels", label: "Channel Explorer", Icon: Layers },
+  { id: "scatter", label: "Low-dim Analysis", Icon: BarChart3 },
+  { id: "classifier", label: "Classifier Lab", Icon: Boxes },
 ];
 
 export function Sidebar({
@@ -30,14 +27,14 @@ export function Sidebar({
   return (
     <aside className="flex w-56 shrink-0 flex-col border-r border-slate-800/80 bg-obsidian-900/95">
       <div className="flex items-center gap-2 border-b border-slate-800/80 px-4 py-4">
-        <div className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-sky-600 to-slate-900 text-white shadow-glow">
-          <Radar className="h-5 w-5" />
+        <div className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-violet-600 to-sky-700 text-white shadow-glow">
+          <Sparkles className="h-5 w-5" />
         </div>
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-            osapiens
+            AlphaEarth
           </p>
-          <p className="text-sm font-semibold text-white">EO Monitor</p>
+          <p className="text-sm font-semibold text-white">Explorer</p>
         </div>
       </div>
 
@@ -73,15 +70,12 @@ export function Sidebar({
       </nav>
 
       <div className="m-2 rounded-lg border border-slate-800 bg-obsidian-950/80 p-3">
-        <div className="flex items-center gap-2 text-slate-500">
-          <Activity className="h-3.5 w-3.5" />
-          <span className="text-[10px] font-semibold uppercase tracking-wide">
-            Makeathon 2026
-          </span>
-        </div>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+          Makeathon 2026
+        </p>
         <p className="mt-1 text-[11px] leading-snug text-slate-600">
-          Multimodal deforestation monitoring — Sentinel-1, Sentinel-2, AEF
-          embeddings, weak labels.
+          AlphaEarth Foundations embeddings · weak deforestation labels · PCA /
+          UMAP / SVM / MLP.
         </p>
       </div>
     </aside>

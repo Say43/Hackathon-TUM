@@ -1,33 +1,29 @@
-import type { LandPlot, TimeSeriesPoint } from "../types";
-
 /**
- * Single source of truth for the backend URL. Trailing slashes are trimmed so
- * concatenation with `/api/...` never produces `//api/...`.
+ * Strict API client for the AlphaEarth Explorer backend.
  *
- * The frontend is API-only: if this is empty or unreachable, the UI shows an
- * explicit error instead of silently retrying against the Vite proxy or
- * localhost. Configure it via `frontend/.env`:
- *
- *     VITE_API_BASE_URL=<jupyter-backend-base-url>
+ * The frontend talks ONLY to the URL in `VITE_API_BASE_URL` — no proxy, no
+ * silent fallback. If the env is unset or the backend is unreachable, every
+ * call throws an `ApiError` so the UI can render a clear message instead of
+ * pretending data exists.
  */
+
+import type {
+  AefChannelStatsResponse,
+  AefTileListResponse,
+  AefTileSummary,
+  ClassifierRunResponse,
+  ClassifyRequestBody,
+  HealthResponse,
+  LabelSource,
+  MislabelResponse,
+  ScatterMethod,
+  ScatterResponse,
+  Split,
+} from "../types/aef";
+
 const RAW_API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").trim();
 export const API_BASE = RAW_API_BASE.replace(/\/+$/, "");
 export const IS_API_CONFIGURED = API_BASE.length > 0;
-
-export type PlotsApiResponse = {
-  split: string;
-  plots: unknown[];
-  errors?: string[];
-};
-
-export type HealthResponse = {
-  status: string;
-  modelLoaded: boolean;
-  datasetPresent: boolean;
-  cachedPredictionsPresent: boolean;
-  testTiles: number;
-  error?: string | null;
-};
 
 export class ApiError extends Error {
   constructor(
@@ -40,44 +36,62 @@ export class ApiError extends Error {
   }
 }
 
-async function apiFetch(path: string): Promise<Response> {
+function ensureConfigured() {
   if (!IS_API_CONFIGURED) {
     throw new ApiError(
       "VITE_API_BASE_URL is not configured. Set it in frontend/.env and restart the dev server.",
     );
   }
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  ensureConfigured();
   const url = `${API_BASE}${path}`;
   let response: Response;
   try {
-    response = await fetch(url);
+    response = await fetch(url, init);
   } catch (err) {
     throw new ApiError(
-      `Could not reach the backend at ${API_BASE}. Check VITE_API_BASE_URL and that the Jupyter backend is online.`,
+      `Could not reach the backend at ${API_BASE}. Is the FastAPI server running?`,
       err,
     );
   }
   if (!response.ok) {
+    let detail = "";
+    try {
+      const body = await response.json();
+      detail = (body as { detail?: string })?.detail ?? "";
+    } catch {
+      detail = await response.text().catch(() => "");
+    }
     throw new ApiError(
-      `Backend responded with ${response.status} ${response.statusText} for ${path}`,
+      `Backend ${response.status} ${response.statusText}: ${detail || path}`,
       undefined,
       response.status,
     );
   }
-  return response;
+  return (await response.json()) as T;
 }
 
-export async function fetchHealth(): Promise<HealthResponse | null> {
+export function imageUrl(path: string): string {
+  ensureConfigured();
+  return `${API_BASE}${path}`;
+}
+
+export async function fetchHealth(): Promise<HealthResponse> {
   try {
-    const r = await apiFetch("/api/health");
-    return (await r.json()) as HealthResponse;
+    return await request<HealthResponse>("/api/health");
   } catch (err) {
     if (err instanceof ApiError) {
       return {
         status: "unreachable",
-        modelLoaded: false,
+        dataDir: null,
         datasetPresent: false,
-        cachedPredictionsPresent: false,
-        testTiles: 0,
+        aefDirPresent: false,
+        labelsDirPresent: false,
+        cacheDir: "",
+        cacheDirPresent: false,
+        labelSources: [],
         error: err.message,
       };
     }
@@ -85,77 +99,93 @@ export async function fetchHealth(): Promise<HealthResponse | null> {
   }
 }
 
-export async function fetchPlots(): Promise<PlotsApiResponse | null> {
-  try {
-    const r = await apiFetch("/api/plots?split=test");
-    return (await r.json()) as PlotsApiResponse;
-  } catch {
-    return null;
-  }
+export function listTiles(split: Split = "train"): Promise<AefTileListResponse> {
+  return request(`/api/aef/tiles?split=${split}`);
 }
 
-/** Map API JSON to strict `LandPlot` (drops unknown keys). */
-export function normalizeLandPlot(raw: unknown): LandPlot {
-  const o = raw as Record<string, unknown>;
-  const pred = o.prediction as LandPlot["prediction"];
-  const weak = (o.weakLabels ?? []) as LandPlot["weakLabels"];
-  const overlays = (o.overlays ?? []) as LandPlot["overlays"];
-  return {
-    id: String(o.id),
-    tileId: String(o.tileId),
-    region: String(o.region),
-    country: String(o.country ?? ""),
-    areaHa: Number(o.areaHa ?? 0),
-    forestCoverPct: Number(o.forestCoverPct ?? 0),
-    centroidLat: Number(o.centroidLat ?? 0),
-    centroidLng: Number(o.centroidLng ?? 0),
-    prediction: {
-      deforestationDetected: Boolean(pred.deforestationDetected),
-      confidence: Number(pred.confidence),
-      eventMonth: String(pred.eventMonth ?? ""),
-      modelVersion: String(pred.modelVersion ?? ""),
-      notes: String(pred.notes ?? ""),
-      labelAgreement: (["agreement", "conflict", "uncertain"].includes(
-        String(pred.labelAgreement),
-      )
-        ? pred.labelAgreement
-        : "uncertain") as LandPlot["prediction"]["labelAgreement"],
-    },
-    weakLabels: weak.map((w) => ({
-      labelSource: String(w.labelSource),
-      label: w.label,
-      confidence: Number(w.confidence),
-      acquisitionMonth: w.acquisitionMonth,
-    })),
-    riskScore: Number(o.riskScore ?? 0),
-    eudrRiskTier: o.eudrRiskTier as LandPlot["eudrRiskTier"],
-    reviewStatus: o.reviewStatus as LandPlot["reviewStatus"],
-    signalStrength: Number(o.signalStrength ?? 0),
-    labelConsistency: Number(o.labelConsistency ?? 0),
-    temporalConsistency: Number(o.temporalConsistency ?? 0),
-    regionAnomalyRisk: Number(o.regionAnomalyRisk ?? 0),
-    evidenceCompleteness: Number(o.evidenceCompleteness ?? 0),
-    dataQualityConfidence: Number(o.dataQualityConfidence ?? 0),
-    humanReviewNeeded: Boolean(o.humanReviewNeeded),
-    complianceRelevance: o.complianceRelevance as LandPlot["complianceRelevance"],
-    overlays,
-    changeWindowStart: String(o.changeWindowStart ?? ""),
-    changeWindowEnd: String(o.changeWindowEnd ?? ""),
-    heatmap: o.heatmap as number[][] | undefined,
-    apiSource: o._apiSource as string | undefined,
-  };
+export function tileSummary(
+  tile: string,
+  year: number,
+  split: Split = "train",
+): Promise<AefTileSummary> {
+  return request(`/api/aef/tiles/${encodeURIComponent(tile)}/${year}/summary?split=${split}`);
 }
 
-export async function fetchTileTimeseries(
-  tileId: string,
-): Promise<TimeSeriesPoint[] | null> {
-  try {
-    const r = await apiFetch(
-      `/api/tiles/${encodeURIComponent(tileId)}/timeseries?split=test`,
-    );
-    const j = (await r.json()) as { points: TimeSeriesPoint[] };
-    return j.points ?? null;
-  } catch {
-    return null;
+export function tileChannelStats(
+  tile: string,
+  year: number,
+  split: Split = "train",
+): Promise<AefChannelStatsResponse> {
+  return request(`/api/aef/tiles/${encodeURIComponent(tile)}/${year}/stats?split=${split}`);
+}
+
+export function previewUrl(tile: string, year: number, split: Split = "train"): string {
+  return imageUrl(
+    `/api/aef/tiles/${encodeURIComponent(tile)}/${year}/preview.png?split=${split}`,
+  );
+}
+
+export function bandsUrl(
+  tile: string,
+  year: number,
+  bands: { r: number; g: number; b: number },
+  mode: "rgb" | "gray",
+  split: Split = "train",
+): string {
+  const params = new URLSearchParams({
+    split,
+    mode,
+    r: String(bands.r),
+    g: String(bands.g),
+    b: String(bands.b),
+  });
+  return imageUrl(
+    `/api/aef/tiles/${encodeURIComponent(tile)}/${year}/bands.png?${params.toString()}`,
+  );
+}
+
+export function fetchScatter(args: {
+  method: ScatterMethod;
+  tiles: string[];
+  labelSource: LabelSource;
+  samplePerTile?: number;
+}): Promise<ScatterResponse> {
+  const params = new URLSearchParams({
+    method: args.method,
+    tiles: args.tiles.join(","),
+    label_source: args.labelSource,
+  });
+  if (args.samplePerTile !== undefined) {
+    params.set("sample_per_tile", String(args.samplePerTile));
   }
+  return request(`/api/aef/scatter?${params.toString()}`);
+}
+
+export function postClassify(body: ClassifyRequestBody): Promise<ClassifierRunResponse> {
+  return request(`/api/aef/classify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export function fetchClassifierRun(modelId: string): Promise<ClassifierRunResponse> {
+  return request(`/api/aef/classify/${encodeURIComponent(modelId)}`);
+}
+
+export function classifierPredictionUrl(modelId: string): string {
+  return imageUrl(`/api/aef/classify/${encodeURIComponent(modelId)}/prediction.png`);
+}
+
+export function classifierProbabilityUrl(modelId: string): string {
+  return imageUrl(`/api/aef/classify/${encodeURIComponent(modelId)}/probability.png`);
+}
+
+export function fetchMislabels(
+  modelId: string,
+  top = 20,
+): Promise<MislabelResponse> {
+  return request(
+    `/api/aef/classify/${encodeURIComponent(modelId)}/mislabels?top=${top}`,
+  );
 }
