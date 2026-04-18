@@ -50,7 +50,7 @@ def _extract_tile_ref(key: str, root_prefix: str) -> tuple[str, str] | None:
         return split, "_".join(stem.split("_")[:3])
     if top in {"sentinel-1", "sentinel-2"}:
         item = parts[2]
-        return item.split("__")[0]
+        return split, item.split("__")[0]
     if top == "labels" and split == "train" and len(parts) >= 4:
         source = parts[2]
         item = parts[3]
@@ -65,31 +65,32 @@ def _extract_tile_ref(key: str, root_prefix: str) -> tuple[str, str] | None:
 
 
 def _choose_tile_ids(keys: list[str], prefix: str, sample_ratio: float) -> tuple[set[str], set[str]]:
-    train_tile_ids: set[str] = set()
+    labelled_train_tile_ids: set[str] = set()
     test_tile_ids: set[str] = set()
     for key in keys:
         tile_ref = _extract_tile_ref(key, prefix)
         if not tile_ref:
             continue
         split, tile_id = tile_ref
-        if split == "train":
-            train_tile_ids.add(tile_id)
+        rel = key[len(prefix) :] if key.startswith(prefix) else key
+        if split == "train" and rel.startswith("labels/train/"):
+            labelled_train_tile_ids.add(tile_id)
         elif split == "test":
             test_tile_ids.add(tile_id)
 
-    if not train_tile_ids:
+    if not labelled_train_tile_ids:
         raise RuntimeError("No labelled train tile ids found while building the 2% sample.")
     if not test_tile_ids:
         raise RuntimeError("No test tile ids found while building the 2% sample.")
 
-    train_sample_count = max(1, math.ceil(len(train_tile_ids) * sample_ratio))
+    train_sample_count = max(1, math.ceil(len(labelled_train_tile_ids) * sample_ratio))
     test_sample_count = max(1, math.ceil(len(test_tile_ids) * sample_ratio))
-    selected_train = set(sorted(train_tile_ids)[:train_sample_count])
+    selected_train = set(sorted(labelled_train_tile_ids)[:train_sample_count])
     selected_test = set(sorted(test_tile_ids)[:test_sample_count])
     logger.info(
         "Selected %d/%d labelled train tile ids and %d/%d test tile ids for Abdul test run.",
         len(selected_train),
-        len(train_tile_ids),
+        len(labelled_train_tile_ids),
         len(selected_test),
         len(test_tile_ids),
     )
