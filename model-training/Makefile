@@ -24,4 +24,9 @@ install: .venv/bin/uv
 	# after installing source .venv/bin/activate in your shell
 
 download_data_from_s3:
-	.venv/bin/python3 -m download_data
+	# Works with either a classic .venv or uv
+	@if [ -x .venv/bin/python3 ]; then \
+		.venv/bin/python3 download_data.py --local_dir ./data; \
+	else \
+		uv run --with boto3 --with botocore python download_data.py --local_dir ./data; \
+	fi
